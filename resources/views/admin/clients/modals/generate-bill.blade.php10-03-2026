@@ -1,0 +1,82 @@
+<div class="modal fade" id="bill" tabindex="-1" aria-labelledby="standard-modalLabel" style="display: none;" aria-hidden="true">
+
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="standard-modalLabel">Generate Bill</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url('admin/clients/generate-bill') }}" method="POST">
+                @csrf
+                <input type="hidden" name="client_id" value="{{ $client->id ?? '' }}">
+                <div class="modal-body g-3">
+                    <div class="row">
+
+                        <div class="col-md-6 mb-2">
+                            <label for="validationDefault04" class="form-label">Invoice Number<x-required-star /></label>
+                            <input type="text" class="form-control" id="invoice_number" name="invoice_number" value="{{ generate_invoice_number() }}" readonly>
+                        </div>
+
+                        <div class="col-md-6 mb-2">
+                            <label for="validationDefault04" class="form-label">KV Id</label>
+                            <input type="text" class="form-control" id="kulvrisk_id" name="kulvrisk_id" value="{{ $client->kulvrisk_id ?? '' }}">
+                        </div>
+
+                        @php
+                         $account = \App\Models\BankAccount::where('status', 'active')->get();
+                        @endphp
+                        <div class="col-md-12 mb-2">
+                            <label for="validationDefault04" class="form-label">Select Bank <x-required-star /></label>
+                            <select class="form-select" id="account" name="bank_account_id">
+                                <option selected disabled>Select Bank Account</option>
+                                @foreach ($account as $item)
+                                    <option value="{{ $item->id }}">{{ $item->bank_name}} - {{ $item->account_number}}</option>
+                                @endforeach
+                            </select>
+                            <span class="text-danger">
+                                @error('bank_account_id')
+                                    {{ $message }}
+                                @enderror
+                            </span>
+                        </div>
+
+                        @php
+                            $projects = \App\Models\Project::whereIn('id', json_decode($client->sub_project_ids, true))->get();
+                            $total = $projects->sum('amount');
+                        @endphp
+                        <input type="hidden" name="amount" value="{{ $total }}">
+                        <input type="hidden" name="client_id" value="{{ $client->id }}">
+
+                        <div class="col-md-12 mt-2">
+                            <table class="table info-table">
+                                <thead>
+                                    <tr>
+                                        <th>Service Name</th>
+                                        <th>Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($projects as $item)
+                                        <tr>
+                                            <td>{{ $item->name }}</td>
+                                            <td>₹{{ number_format($item->amount, 2) }}</td>
+                                        </tr>
+                                    @endforeach
+                                    <tr>
+                                        <td class="text-end fw-bold">Total</td>
+                                        <td class="fw-bold">₹{{ number_format($total, 2) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" name="submit" class="btn btn-primary">Generate </button>
+                </div>
+            </form>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div>

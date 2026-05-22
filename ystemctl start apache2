@@ -1,0 +1,15 @@
+[0;1;31m×[0m apache2.service - The Apache HTTP Server
+     Loaded: loaded (]8;;file://srv1088009/usr/lib/systemd/system/apache2.service/usr/lib/systemd/system/apache2.service]8;;; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: [0;1;31mfailed[0m (Result: exit-code) since Thu 2026-01-22 17:25:25 UTC; 28s ago
+   Duration: 1h 43min 3.841s
+       Docs: ]8;;https://httpd.apache.org/docs/2.4/https://httpd.apache.org/docs/2.4/]8;;
+    Process: 50775 ExecStart=/usr/sbin/apachectl start [0;1;31m(code=exited, status=1/FAILURE)[0m
+        CPU: 29ms
+
+Jan 22 17:25:25 srv1088009 systemd[1]: Starting apache2.service - The Apache HTTP Server...
+Jan 22 17:25:25 srv1088009 apachectl[50777]: AH00526: Syntax error on line 73 of /etc/apache2/fastpanel2-sites/fastuser/crm.kulvriksh.in.conf:
+Jan 22 17:25:25 srv1088009 apachectl[50777]: SSLCertificateFile: file '/etc/letsencrypt/live/crm.kulvriksh.in/fullchain.pem' does not exist or is empty
+Jan 22 17:25:25 srv1088009 systemd[1]: [0;1;39m[0;1;31m[0;1;39mapache2.service: Control process exited, code=exited, status=1/FAILURE[0m
+Jan 22 17:25:25 srv1088009 systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185mapache2.service: Failed with result 'exit-code'.[0m
+Jan 22 17:25:25 srv1088009 systemd[1]: [0;1;31m[0;1;39m[0;1;31mFailed to start apache2.service - The Apache HTTP Server.[0m
+Jan 22 17:25:34 srv1088009 systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185mapache2.service: Unit cannot be reloaded because it is inactive.[0m

@@ -1,0 +1,294 @@
+<?php
+use App\Models\ActivityLog;
+use App\Models\Bill;
+use App\Models\Client;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
+
+if (! function_exists('generate_kulvrisk_id')) {
+    function generate_kulvrisk_id()
+    {
+        $latest = Client::withTrashed()->orderBy('id', 'desc')->value('kulvrisk_id');
+
+        if (! $latest) {
+            return 'KV001';
+        }
+
+        $number    = (int) substr($latest, 2); // Strip 'KV'
+        $newNumber = str_pad($number + 1, 3, '0', STR_PAD_LEFT);
+
+        return 'KV' . $newNumber;
+    }
+}
+
+// if (! function_exists('generate_invoice_number')) {
+//     function generate_invoice_number()
+//     {
+//         $latest = Bill::withTrashed()->orderBy('id', 'desc')->value('invoice_number');
+
+//         if (! $latest) {
+//             return 'INV001';
+//         }
+
+//         // Assuming invoice numbers like "INV001", "INV002", etc.
+//         $number    = (int) substr($latest, 3); // Strip 'INV'
+//         $newNumber = str_pad($number + 1, 3, '0', STR_PAD_LEFT);
+
+//         return 'INV' . $newNumber;
+//     }
+// }
+
+if (!function_exists('generate_invoice_number')) {
+    function generate_invoice_number()
+    {
+        $now = Carbon::now();
+
+        // Determine the current financial year start and end
+        $financialYearStart = Carbon::create($now->month >= 4 ? $now->year : $now->year - 1, 4, 1)->startOfDay();
+        $financialYearEnd   = Carbon::create($financialYearStart->year + 1, 3, 31)->endOfDay();
+
+        // Generate date prefix: YYYYMMDD
+        // $datePrefix = $now->format('Ym');
+
+        // // Get latest bill in this financial year
+        // $latest = Bill::withTrashed()
+        //     ->whereBetween('created_at', [$financialYearStart, $financialYearEnd])
+        //     ->orderBy('invoice_number', 'desc')
+        //     ->value('invoice_number');
+        //mansi add
+         $datePrefix = $now->format('Ym');
+
+            $latest = Bill::withTrashed()
+                ->where('invoice_number', 'like', $datePrefix . '00%')
+                ->orderBy('invoice_number', 'desc')
+                ->value('invoice_number');
+
+        if (!$latest) {
+            // First invoice of the financial year
+            // $newNumber = '2984';
+                        $newNumber = '0001';
+
+        } else {
+            // Extract last 3 digits from the invoice number
+            $lastSerial = (int) substr($latest, -4);
+            $newNumber = str_pad($lastSerial + 1, 4, '0', STR_PAD_LEFT);
+        }
+
+        return $datePrefix . $newNumber;
+    }
+}
+
+if (! function_exists('getResearchersWithNames')) {
+    function getResearchersWithNames($researcherIds)
+    {
+        if (empty($researcherIds)) {
+            return ['researchers' => collect()];
+        }
+
+        $researchers = \App\Models\User::whereIn('id', $researcherIds)->get();
+        return ['researchers' => $researchers];
+    }
+}
+
+if (! function_exists('getProjectsWithNames')) {
+    function getProjectsWithNames($type, $projectIds)
+    {
+        if (empty($projectIds)) {
+            return ['names' => '', 'projects' => collect()];
+        }
+
+        $projectIds = is_array($projectIds) ? $projectIds : [];
+        $projectsById = \App\Models\Project::whereIn('id', array_unique($projectIds))->get()->keyBy('id');
+        $names = collect($projectIds)
+            ->map(fn ($id) => $projectsById->get($id)?->name ?? null)
+            ->filter()
+            ->implode(', ');
+        return ['names' => $names, 'projects' => $projectsById->values()];
+    }
+}
+
+if (! function_exists('log_activity')) {
+    function log_activity($model, $action, $description = null)
+    {
+        try {
+            $user = auth()->user();
+            \App\Models\ActivityLog::create([
+                'user_id' => $user ? $user->id : null,
+                'model' => $model,
+                'action' => $action,
+                'description' => $description,
+                'ip_address' => request()->ip(),
+                'role' => $user ? $user->roles->first()?->name : null,
+                'user_agent' => request()->userAgent(),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Activity logging failed: ' . $e->getMessage());
+        }
+    }
+}
+
+if (!function_exists('get_initials')) {
+    /**
+     * Generate initials from a name
+     * 
+     * @param string|null $name The full name to generate initials from
+     * @return string The generated initials
+     */
+    function get_initials(?string $name): string
+    {
+        if (empty($name)) {
+            return '';
+        }
+
+        $nameParts = explode(' ', $name);
+        $initials = '';
+        
+        if (count($nameParts) > 0) {
+            $initials .= strtoupper(substr($nameParts[0], 0, 1));
+            if (count($nameParts) > 1) {
+                $initials .= strtoupper(substr($nameParts[1], 0, 1));
+            }
+        }
+
+        return $initials;
+    }
+}
+
+if (!function_exists('get_profile_image')) {
+    /**
+     * Get the profile image path or return default avatar
+     * 
+     * @param string|null $profileImage The profile image path
+     * @return string The profile image path or default avatar
+     */
+    function get_profile_image(?string $profileImage, ?string $name = "K"): string
+    {
+        if (!empty($profileImage) && file_exists(public_path($profileImage))) {
+            return asset($profileImage);
+        }
+        
+        return "https://placehold.co/50?text=" . get_initials($name);
+    }
+}
+
+if (!function_exists('send_mail_with_user_smtp')) {
+    /**
+     * Send email using user-specific SMTP settings
+     */
+    function send_mail_with_user_smtp($user, $to, $subject, $content, $view = null, $data = [])
+    {
+        try {
+            // Set user-specific mail configuration
+            if ($user && $user->hasSmtpConfigured()) {
+                $smtpConfig = $user->getSmtpConfig();
+                
+                config([
+                    'mail.mailers.smtp.host' => $smtpConfig['host'],
+                    'mail.mailers.smtp.port' => $smtpConfig['port'],
+                    'mail.mailers.smtp.username' => $smtpConfig['username'],
+                    'mail.mailers.smtp.password' => $smtpConfig['password'],
+                    'mail.mailers.smtp.encryption' => $smtpConfig['encryption'],
+                    'mail.from.address' => $smtpConfig['from_address'],
+                    'mail.from.name' => $smtpConfig['from_name'],
+                ]);
+            }
+
+            // Send email
+            if ($view) {
+                \Mail::send($view, $data, function ($message) use ($to, $subject) {
+                    $message->to($to)->subject($subject);
+                });
+            } else {
+                \Mail::raw($content, function ($message) use ($to, $subject) {
+                    $message->to($to)->subject($subject);
+                });
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            \Log::error('Email sending failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+}
+
+if (!function_exists('get_researcher_status')) {
+    function get_researcher_status($client_id = null)
+    {
+        $client = Client::find($client_id);
+        if (!$client) {
+            return 'pending';
+        }
+        
+        // Use the new global scope approach
+        return $client->current_research_status;
+    }
+}
+
+/**
+ * Translate text using Google Translate API
+ */
+function translateText($text, $fromLang = 'en', $toLang = 'en') {
+    if (empty($text) || $fromLang === $toLang) {
+        return $text;
+    }
+
+    $apiKey = env('TRANSLATION_API');
+    if (!$apiKey) {
+        return $text;
+    }
+
+    $url = "https://translation.googleapis.com/language/translate/v2?key=" . $apiKey;
+    
+    $data = [
+        'q' => $text,
+        'source' => $fromLang,
+        'target' => $toLang,
+        'format' => 'text'
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200) {
+        $result = json_decode($response, true);
+        if (isset($result['data']['translations'][0]['translatedText'])) {
+            return $result['data']['translations'][0]['translatedText'];
+        }
+    }
+
+    return $text;
+}
+
+if (!function_exists('roleType')) {
+    function roleType()
+    {
+        return auth()->user()->roles->first()->role_type;
+    }
+}
+if (!function_exists('paymentMode')) {
+    function paymentMode($key)
+    {
+        $paymentMode = [
+            'neft' => 'NEFT',
+            'dbf' => 'Direct Bank Transfer',
+            'cheque' => 'Cheque',
+            'upi' => 'UPI',
+            'credit' => 'Credit Card',
+            'debit' => 'Debit Card',
+            'cash' => 'Cash',
+        ];
+        return $paymentMode[$key] ?? $key;
+    }
+}

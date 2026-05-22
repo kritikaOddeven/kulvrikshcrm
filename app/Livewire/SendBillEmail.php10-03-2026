@@ -1,0 +1,168 @@
+<?php
+namespace App\Livewire;
+
+use App\Models\Bill;
+use App\Models\Project;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Mail;
+use Livewire\Component;
+use Illuminate\Support\Facades\Auth;
+
+
+class SendBillEmail extends Component
+{
+    public Bill $bill;
+    public $email;
+    public $subject;
+    public $body;
+    public $pdfFilename;
+    public $showModal = false;
+
+    public function mount(Bill $bill)
+    {
+        $this->bill = $bill->load('bankAccount');
+    }
+
+    public function prepareEmail()
+    {
+        // Get bill data with relationships
+        $bill = $this->bill->load('client.lead.countries', 'client.lead.states', 'client.lead.districts');
+        
+        // Get projects for this bill
+        $subProjectIds = json_decode($bill->sub_project_ids ?? $bill->client->sub_project_ids ?? '[]', true);
+        $projects = Project::whereIn('id', $subProjectIds)->get();
+        
+        // Calculate amounts
+        $subTotal = $projects->sum('amount');
+        
+        // Check if country is India
+        $countryName = strtolower($bill->client->lead->countries->name ?? '');
+        $isIndia = $countryName === 'india';
+        
+        if ($isIndia) {
+            $stateName = strtolower($bill->client->lead->states->name ?? '');
+            $isGujarat = $stateName === 'gujarat';
+        
+            if ($isGujarat) {
+                $cgst = $subTotal * 0.09;
+                $sgst = $subTotal * 0.09;
+                $igst = 0;
+            } else {
+                $cgst = 0;
+                $sgst = 0;
+                $igst = $subTotal * 0.18;
+            }
+        } else {
+            $cgst = 0;
+            $sgst = 0;
+            $igst = 0;
+        }
+        
+        // Calculate gross, total, and round-off discount
+        $grossAmount = round($subTotal + $cgst + $sgst + $igst, 2);
+        $totalAmount = floor($grossAmount);
+        $roundOffDiscount = round($grossAmount - $totalAmount, 2);
+
+        $this->email = $bill->client->lead->email ?? '';
+        $this->subject = 'Invoice #' . $bill->invoice_number . ' - Kulvriksh';
+        $this->body = 'Please find the attached invoice for your reference.';
+
+        // Ensure the public/bill_attachments directory exists
+        $publicTmpPath = public_path('bill_attachments');
+        if (!file_exists($publicTmpPath)) {
+            mkdir($publicTmpPath, 0755, true);
+        }
+
+        // Generate PDF using the dedicated PDF template
+        $pdf = Pdf::loadView('admin.bills.pdf', [
+            'bill' => $bill,
+            'projects' => $projects,
+            'subTotal' => $subTotal,
+            'cgst' => $cgst,
+            'sgst' => $sgst,
+            'igst' => $igst,
+            'totalAmount' => $totalAmount,
+            'grossAmount' => $grossAmount,
+            'roundOffDiscount' => $roundOffDiscount,
+            'isGujarat' => $isGujarat ?? false,
+            'isIndia' => $isIndia
+        ]);
+        
+
+        $this->pdfFilename = 'bill_' . $bill->invoice_number . '_' . time() . '.pdf';
+        $fullPath = $publicTmpPath . '/' . $this->pdfFilename;
+
+        // Save PDF to public/bill_attachments
+        $pdf->save($fullPath);
+
+        if (!file_exists($fullPath)) {
+            session()->flash('error', 'Failed to save PDF file.');
+            return;
+        }
+
+        $this->showModal = true;
+        $this->dispatch('pdfGenerated');
+    }
+
+    public function send()
+    {
+        try {
+            $this->validate([
+                'email' => 'required|email',
+                'subject' => 'required|string|max:255',
+                'body' => 'required|string',
+            ]);
+
+            $file = public_path("bill_attachments/{$this->pdfFilename}");
+
+            if (!file_exists($file)) {
+                session()->flash('error', 'PDF file not found.');
+                $this->dispatch('emailSent', ['status' => 'error', 'message' => 'PDF file not found.']);
+                return;
+            }
+
+            Mail::to($this->email)->bcc(Auth::user()->smtpSetting->username)->send(new \App\Mail\BillDetailsMail($file, $this->bill, $this->subject, $this->body));
+
+            // Delete the temporary file
+            if (file_exists($file)) {
+                unlink($file);
+            }
+
+            $this->reset(['email', 'subject', 'body', 'pdfFilename', 'showModal']);
+            session()->flash('success', 'Bill email sent successfully.');
+            $this->dispatch('emailSent', ['status' => 'success', 'message' => 'Bill email sent successfully.']);
+            return redirect()->back()->with('success', 'Bill email sent successfully.');
+            
+        } catch (\Exception $e) {
+            // Log the error for debugging
+            \Log::error('Email sending failed: ' . $e->getMessage());
+            
+            // Delete the temporary file if it exists
+            $file = public_path("bill_attachments/{$this->pdfFilename}");
+            if (file_exists($file)) {
+                unlink($file);
+            }
+            
+            session()->flash('error', 'Failed to send email. Please try again.');
+            $this->dispatch('emailSent', ['status' => 'error', 'message' => 'Failed to send email. Please try again.']);
+        }
+    }
+
+    public function closeModal()
+    {
+        $this->reset(['email', 'subject', 'body', 'pdfFilename', 'showModal']);
+    }
+
+    public function getPdfPreviewUrl()
+    {
+        if ($this->pdfFilename) {
+            return asset('bill_attachments/' . $this->pdfFilename);
+        }
+        return null;
+    }
+
+    public function render()
+    {
+        return view('livewire.send-bill-email');
+    }
+} 
