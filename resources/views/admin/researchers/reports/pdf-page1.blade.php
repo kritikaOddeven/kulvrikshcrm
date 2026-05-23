@@ -9,7 +9,7 @@
             'en' => [
                 'kulvriksh_id' => 'Kulvriksh ID',
                 'lineage' => 'Lineage',
-                'cast' => 'Cast',
+                'cast' => 'Caste',
                 'subspecies' => 'SubCaste',
                 'surname' => 'Surname',
                 'credit' => 'Branch',
@@ -141,7 +141,8 @@
             padding: 20px;
             border-radius: 10px;
             position: relative;
-            max-width: 600px;
+            max-width: 595px;
+            height: 842px;
             margin: auto;
             background-position: center;
             background-size: cover;
@@ -154,7 +155,7 @@
             position: relative;
             padding: 20px;
             border: 2px solid #DE6C27;
-            height: 748px;
+            height: 802px;
         }
 
         /* .main-border::before,
@@ -561,8 +562,8 @@
                         <div class="highlight-box">{{ $report->title }}</div>
                         @php
                             $description = $report->description ?? '';
-                            $firstChunkSize = 2100;
-                            $subsequentChunkSize = 3500;
+                            $firstChunkSize = 1500;
+                            $subsequentChunkSize = 2500;
 
                             // Get first chunk
                             $firstChunk = substr($description, 0, $firstChunkSize);
@@ -577,7 +578,7 @@
                             $chunks = array_merge([$firstChunk], $remainingChunks);
                         @endphp
 
-                        <div class="quote">{{ $chunks[0] ?? '' }}</div>
+                        <div class="quote">{!! nl2br(e($chunks[0] ?? '')) !!}</div>
 
                     </div>
                     <img src="{{ asset('assets/admin/images/logo-bg.png') }}" alt="logo" class="logo-bottom">
@@ -597,7 +598,7 @@
                                 <div class="header">
                                     <div class="kulvriksh-idbox">{{ $currentLabels['kulvriksh_id'] }} - {{ $report->client->kulvrisk_id ?? '' }}</div>
                                 </div>
-                                <div class="quote text-justify">{{ $chunks[$i] }}</div>
+                                <div class="quote text-justify">{!! nl2br(e($chunks[$i])) !!}</div>
                             </div>
                             @if ($i == count($chunks) - 1 && !($report->history_title || $report->history_description))
                                 <img src="{{ asset('assets/admin/images/logo-bg.png') }}" alt="logo" class="logo-bottom">
@@ -610,8 +611,8 @@
             {{-- add hostory title disscription --}}
             @php
                 $historyDescription = $report->history_description ?? '';
-                $firstChunkSize = 3000;
-                $subsequentChunkSize = 3000;
+                $firstChunkSize = 2000;
+                $subsequentChunkSize = 2000;
 
                 // Get first chunk
                 $firstChunk = substr($historyDescription, 0, $firstChunkSize);
@@ -635,7 +636,7 @@
                                 <div class="kulvriksh-idbox">{{ $currentLabels['kulvriksh_id'] }} - {{ $report->client->kulvrisk_id ?? '' }}</div>
                             </div>
                             <div class="highlight-box">{{ $report->history_title }}</div>
-                            <div class="quote">{{ $chunksHistroy[0] ?? '' }}</div>
+                           <div class="quote">{!! nl2br(e($chunksHistroy[0] ?? '')) !!}</div>
                         </div>
                         @if (!(count($chunksHistroy) > 1))
                             <img src="{{ asset('assets/admin/images/logo-bg.png') }}" alt="logo" class="logo-bottom">
@@ -654,7 +655,7 @@
                                 <div class="header">
                                     <div class="kulvriksh-idbox">{{ $currentLabels['kulvriksh_id'] }} - {{ $report->client->kulvrisk_id ?? '' }}</div>
                                 </div>
-                                <div class="quote text-justify">{{ $chunksHistroy[$i] }}</div>
+                                <div class="quote text-justify">{!! nl2br(e($chunksHistroy[$i])) !!}</div>
                             </div>
                             @if ($i == count($chunksHistroy) - 1)
                                 <img src="{{ asset('assets/admin/images/logo-bg.png') }}" alt="logo" class="logo-bottom">
