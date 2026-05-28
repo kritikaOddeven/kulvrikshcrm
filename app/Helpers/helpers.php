@@ -56,10 +56,11 @@ if (!function_exists('generate_invoice_number')) {
         //     ->orderBy('invoice_number', 'desc')
         //     ->value('invoice_number');
         //mansi add
-         $datePrefix = $now->format('Ym');
+         $datePrefix = $now->format('Y');
 
             $latest = Bill::withTrashed()
-                ->where('invoice_number', 'like', $datePrefix . '00%')
+                ->whereBetween('created_at', [$financialYearStart, $financialYearEnd])
+                ->where('invoice_number', 'like', $datePrefix . '%')
                 ->orderBy('invoice_number', 'desc')
                 ->value('invoice_number');
 
@@ -70,8 +71,8 @@ if (!function_exists('generate_invoice_number')) {
 
         } else {
             // Extract last 3 digits from the invoice number
-            $lastSerial = (int) substr($latest, -4);
-            $newNumber = str_pad($lastSerial + 1, 4, '0', STR_PAD_LEFT);
+            $lastSerial = (int) substr($latest, -3);
+            $newNumber = str_pad($lastSerial + 1, 5, '0', STR_PAD_LEFT);
         }
 
         return $datePrefix . $newNumber;
